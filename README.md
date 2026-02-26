@@ -231,22 +231,22 @@ Faites preuve de pédagogie et soyez clair dans vos explications et procedures d
 **Exercice 1 :**  
 Quels sont les composants dont la perte entraîne une perte de données ?  
   
-*..Répondez à cet exercice ici..*
+Les composants dont la perte entraine une perte de donnees sont : le **PVC pra-data** (qui contient la base SQLite de production) et le **PVC pra-backup** (qui contient les sauvegardes). Si le PVC pra-data est perdu sans que pra-backup existe, les donnees sont definitivement perdues. Le pod lui-meme est sans etat (stateless) et peut etre recree sans perte de donnees.
 
 **Exercice 2 :**  
 Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data  
   
-*..Répondez à cet exercice ici..*
+Lors de la suppression du pod (scenario PCA), nous n'avons pas perdu les donnees car celles-ci sont stockees sur un **PersistentVolumeClaim (PVC)** et non dans le pod. Le PVC `pra-data` survit a la destruction du pod. Quand Kubernetes recree automatiquement le pod via le Deployment, le nouveau pod remonte le meme PVC et retrouve donc toutes les donnees intactes.
 
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-*..Répondez à cet exercice ici..*
+**RPO (Recovery Point Objective)** = 1 minute maximum, car le CronJob de sauvegarde s'execute toutes les minutes. On peut donc perdre au maximum 1 minute de donnees. **RTO (Recovery Time Objective)** = quelques minutes, correspondant au temps de detection de la panne, de suppression de l'ancien PVC, de recreation du PVC, d'execution du Job de restauration et de redemarrage du pod.
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
   
-*..Répondez à cet exercice ici..*
+Cette solution ne peut pas etre utilisee en production car : (1) les backups sont stockes sur le meme noeud/cluster que les donnees de production, donc une panne du noeud entraine la perte des deux. Il faudrait un stockage distant (S3, NFS). (2) SQLite ne supporte pas les acces concurrents, il faudrait une vraie base de donnees (PostgreSQL, MySQL). (3) Il n'y a pas de monitoring ni d'alerting automatise. (4) Le RTO est manuel et depend d'une intervention humaine. (5) Il n'y a pas de replication multi-site ni de haute disponibilite.
   
 **Exercice 5 :**  
 Proposez une archtecture plus robuste.   
