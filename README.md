@@ -251,7 +251,37 @@ Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai en
 **Exercice 5 :**  
 Proposez une archtecture plus robuste.   
   
-*..Répondez à cet exercice ici..*
+Pour une architecture plus robuste en production, voici les ameliorations proposees :
+
+**1. Replication multi-site (Disaster Recovery)**
+- Deployer un cluster Kubernetes secondaire sur un site geographiquement distant (ou une seconde region cloud).
+- Utiliser un outil comme **Velero** pour repliquer les sauvegardes vers un stockage objet distant (S3, Azure Blob, GCS).
+- Mettre en place un DNS failover (Route53, Cloudflare) pour basculer automatiquement vers le site secondaire.
+
+**2. Base de donnees adaptee**
+- Remplacer SQLite par **PostgreSQL** avec replication synchrone (primary/standby).
+- Utiliser un operateur Kubernetes comme **CloudNativePG** ou **Zalando Postgres Operator** pour gerer le failover automatique.
+
+**3. Haute disponibilite applicative**
+- Deployer l'application avec **minimum 2 replicas** repartis sur des nodes differents (`podAntiAffinity`).
+- Utiliser un **Ingress Controller** avec health checks pour router le trafic uniquement vers les pods sains.
+
+**4. Stockage distribue**
+- Remplacer le stockage local par un systeme distribue comme **Longhorn**, **Rook-Ceph** ou un stockage cloud manage.
+- Activer la replication des volumes sur plusieurs nodes.
+
+**5. Monitoring et alerting**
+- Deployer **Prometheus + Grafana** pour surveiller l'etat du cluster, des pods et des backups.
+- Configurer des alertes (PagerDuty, Slack) en cas d'echec de backup ou de pod en erreur.
+
+**6. Automatisation du PRA**
+- Ecrire des runbooks automatises (scripts ou pipelines CI/CD) pour la restauration.
+- Tester regulierement le PRA avec des exercices de simulation (Chaos Engineering avec **LitmusChaos** ou **Chaos Monkey**).
+
+**7. Securite des sauvegardes**
+- Chiffrer les backups au repos et en transit.
+- Verifier l'integrite des sauvegardes avec des checksums.
+- Appliquer une politique de retention (ex: 7 jours de backups quotidiens, 4 semaines de backups hebdomadaires).
 
 ---------------------------------------------------
 Séquence 6 : Ateliers  
