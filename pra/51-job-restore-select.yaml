@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sqlite-restore-select
+  namespace: pra
+spec:
+  template:
+    spec:
+      containers:
+      - name: restore
+        image: alpine
+        command:
+        - sh
+        - -c
+        - |
+          echo "=== Backups disponibles ==="
+          ls -lh /backup/app-*.db
+          echo ""
+          echo "=== Restauration du backup : ${BACKUP_FILE} ==="
+          cp /backup/${BACKUP_FILE} /data/app.db
+          echo "Restauration terminee avec succes !"
+        env:
+        - name: BACKUP_FILE
+          value: "REPLACE_ME"
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: backup
+          mountPath: /backup
+      restartPolicy: Never
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: pra-data
+      - name: backup
+        persistentVolumeClaim:
+          claimName: pra-backup
+  backoffLimit: 1

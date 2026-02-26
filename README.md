@@ -293,13 +293,96 @@ Difficulté : Moyenne (~2 heures)
 * last_backup_file : nom du dernier backup présent dans /backup
 * backup_age_seconds : âge du dernier backup
 
-*..**Déposez ici une copie d'écran** de votre réussite..*
+Voici le resultat de la route `/status` :
+
+```json
+{"backup_age_seconds":null,"count":3,"last_backup_file":null}
+```
+
+La route retourne bien en JSON :
+- `count` : le nombre d'evenements en base (ici 3)
+- `last_backup_file` : le nom du dernier fichier de backup present dans /backup
+- `backup_age_seconds` : l'age en secondes du dernier backup
+
+Le code de la route est dans `app/app.py` et utilise `glob` pour lister les fichiers de backup dans `/backup/`, `os.path.getmtime()` pour calculer l'age du backup, et une requete SQL `SELECT COUNT(*)` pour le nombre d'evenements.
 
 ---------------------------------------------------
 ### **Atelier 2 : Choisir notre point de restauration**  
 Aujourd’hui nous restaurobs “le dernier backup”. Nous souhaitons **ajouter la capacité de choisir un point de restauration**.
 
-*..Décrir ici votre procédure de restauration (votre runbook)..*  
+### Runbook : Restauration a un point precis
+
+**Objectif** : Permettre a l'operateur de choisir un backup specifique plutot que de restaurer systematiquement le dernier backup.
+
+**Pre-requis** : Le fichier `pra/51-job-restore-select.yaml` a ete cree pour cette procedure.
+
+**Etape 1 : Lister les backups disponibles**
+
+Lancer un pod temporaire pour voir les backups :
+```bash
+kubectl -n pra run debug-backup --rm -it --image=alpine --overrides='
+{
+  "spec": {
+    "containers": [{
+      "name": "debug",
+      "image": "alpine",
+      "command": ["sh", "-c", "ls -lh /backup/app-*.db"],
+      "volumeMounts": [{"name": "backup", "mountPath": "/backup"}]
+    }],
+    "volumes": [{"name": "backup", "persistentVolumeClaim": {"claimName": "pra-backup"}}]
+  }
+}'
+```
+
+Cela affichera une liste de fichiers comme :
+```
+-rw-r--r--  1 root  root  20K  app-1740000000.db
+-rw-r--r--  1 root  root  20K  app-1740000060.db
+-rw-r--r--  1 root  root  20K  app-1740000120.db
+```
+
+Le timestamp Unix dans le nom du fichier indique le moment de la sauvegarde. On peut le convertir avec : `date -d @1740000000`
+
+**Etape 2 : Arreter l'application et les sauvegardes**
+
+```bash
+kubectl -n pra scale deployment flask --replicas=0
+kubectl -n pra patch cronjob sqlite-backup -p '{"spec":{"suspend":true}}'
+```
+
+**Etape 3 : Choisir et restaurer le backup**
+
+Editer le fichier `pra/51-job-restore-select.yaml` et remplacer `REPLACE_ME` par le nom du fichier choisi (ex: `app-1740000060.db`) :
+
+```bash
+sed -i 's/REPLACE_ME/app-1740000060.db/' pra/51-job-restore-select.yaml
+kubectl delete job sqlite-restore-select -n pra --ignore-not-found
+kubectl apply -f pra/51-job-restore-select.yaml
+```
+
+**Etape 4 : Relancer l'application et les sauvegardes**
+
+```bash
+kubectl -n pra scale deployment flask --replicas=1
+kubectl -n pra patch cronjob sqlite-backup -p '{"spec":{"suspend":false}}'
+```
+
+**Etape 5 : Verifier la restauration**
+
+```bash
+kubectl -n pra port-forward svc/flask 8080:80 &
+curl -s localhost:8080/consultation
+curl -s localhost:8080/count
+```
+
+Verifier que les donnees correspondent au point de restauration choisi.
+
+**Resume de la procedure** :
+1. Lister les backups et identifier le point de restauration souhaite
+2. Stopper l'application et le CronJob
+3. Lancer le Job de restauration avec le fichier choisi
+4. Relancer l'application et le CronJob
+5. Verifier les donnees restaurees  
   
 ---------------------------------------------------
 Evaluation
